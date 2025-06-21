@@ -1,0 +1,57 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# Editor & OS files
+*.DS_Store
+*.swp
+*.swo
+*.bak
+.idea/
+.vscode/
+*.log
+
+# Local environment & secrets
+.env
+.env.*
+
+# Uvicorn & build files
+*.pid
+*.db
+*.sqlite3
+
+# Python project files
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+.eggs/
+*.egg-info/
+
+# Lock files
+pip-log.txt
+pip-delete-this-directory.txt
+uv.lock
+
+# Misc
+*.tar.gz
+*.zip
