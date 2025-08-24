@@ -1,10 +1,13 @@
-from typing import List
+from typing import List, ClassVar
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 
 class Setting(BaseSettings):
     # Project data
-    PROJECT_NAME: str = "ToDo"
-    PROJECT_DESCRIPTION: str = "Hello worlds!\nIt's project ToDo"
+    PROJECT_NAME: str = "FocusUp"
+    PROJECT_DESCRIPTION: str = "Hello worlds!\nIt's project FocusUp"
+    BASE_DIR: ClassVar[Path] = Path(__file__).resolve().parent.parent
+    MEDIA_DIR: ClassVar[Path] = BASE_DIR / "media"
 
     # Database
     DB_HOST: str
@@ -33,6 +36,15 @@ class Setting(BaseSettings):
     @property
     def DATA_BASE_URL_asyncpg(self):
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    @property
+    def DATA_BASE_URL_sync(self):
+        return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    # Get media path
+    @property
+    def media_path(self) -> Path:
+        return self.MEDIA_DIR
 
     # env file settings
     model_config = SettingsConfigDict(env_file=".env")

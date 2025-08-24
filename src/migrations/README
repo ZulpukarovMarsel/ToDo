@@ -1,0 +1,6 @@
+Generic single-database configuration.
+
+commands for migrate
+
+alembic -c src/alembic.ini revision --autogenerate -m "text migrate"
+alembic -c src/alembic.ini upgrade head

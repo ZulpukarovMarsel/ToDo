@@ -1,9 +1,12 @@
 import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.cors import CORSMiddleware
 
+from middleware.auth_middleware import AuthMiddleware
 from middleware.db_middleware import DBSessionMiddleware
+from api.routes import router as api_router
 from core.config import settings
 from core.db import db_instance
 
@@ -28,7 +31,11 @@ if settings.CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+app.add_middleware(AuthMiddleware)
 app.add_middleware(DBSessionMiddleware, session_factory=db_instance._async_session_maker)
+
+app.include_router(api_router)
+app.mount("/media", StaticFiles(directory=settings.media_path), name="media")
 
 
 @app.get("/")
@@ -37,5 +44,5 @@ async def root():
 
 
 if __name__ == '__main__':
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True,
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True,
                 workers=1, limit_concurrency=100, limit_max_requests=1000)
