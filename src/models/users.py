@@ -35,12 +35,15 @@ class Role(BaseModel):
 class User(BaseModel):
     email: Mapped[str] = mapped_column(unique=True, nullable=False)
     image: Mapped[str] = mapped_column(nullable=True, default='')
-    first_name: Mapped[str]
-    last_name: Mapped[str]
-    password: Mapped[str] = mapped_column(nullable=False)
+    first_name: Mapped[str] = mapped_column(nullable=True, default='')
+    last_name: Mapped[str] = mapped_column(nullable=True, default='')
+    password: Mapped[str] = mapped_column(nullable=True, default='')
     roles: Mapped[List["Role"]] = relationship(
         secondary=association_table, back_populates="users"
     )
+    # projects: relationship(
+    #     "Project", back_populates="owner"
+    # )
 
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}"

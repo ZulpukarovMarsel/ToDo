@@ -15,9 +15,6 @@ router = APIRouter(
 
 @router.get("/", response_model=list[UserSchema])
 async def get_users(request: Request):
-    """
-    Получить список пользователей
-    """
     db = request.state.db
     user_repo = UserRepository(db)
     users = await user_repo.get_all(selectinload(user_repo.model.roles))
@@ -27,9 +24,6 @@ async def get_users(request: Request):
 @router.get("/{user_id}", response_model=UserSchema)
 async def get_user_by_id(user_id: int,
                          request: Request):
-    """
-    Получить пользователя по ID
-    """
     db = request.state.db
     user_repo = UserRepository(db)
     user = await user_repo.get_data_by_id(user_id, selectinload(user_repo.model.roles))
@@ -41,9 +35,6 @@ async def get_user_by_id(user_id: int,
 @router.post("/", response_model=UserSchema)
 async def create_user(user: UserAddSchema,
                       request: Request):
-    """
-    Создать нового пользователя
-    """
     db = request.state.db
     user_repo = UserRepository(db)
     user_service = UserService(user_repo)
@@ -58,9 +49,6 @@ async def create_user(user: UserAddSchema,
 @router.patch("/{user_id}", response_model=UserSchema)
 async def update_user(user_id: int, user: UserPatchSchema,
                       request: Request):
-    """
-    Обновить пользователя по ID
-    """
     db = request.state.db
     user_repo = UserRepository(db)
     user_data = user.dict(exclude_unset=True)
@@ -73,9 +61,6 @@ async def update_user(user_id: int, user: UserPatchSchema,
 @router.delete("/{user_id}", response_model=UserSchema)
 async def delete_user(user_id: int,
                       request: Request):
-    """
-    Удалить пользователя по ID
-    """
     db = request.state.db
     user_repo = UserRepository(db)
     deleted_user = await user_repo.delete_data(user_id)

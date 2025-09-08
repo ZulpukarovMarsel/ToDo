@@ -1,20 +1,28 @@
+import logging
+import httpx
+
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.encoders import jsonable_encoder
 from jose import JWTError
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from datetime import datetime
 
+from core.config import settings
 from repositories.users import UserRepository
+from repositories.otp import OTPRepository
 from schemas.auth import (
     AuthLoginSchema, AuthLoginResponseSchema,
     AuthProfileSchema, AuthProfileUpdateSchema,
     AuthRegisterSchema,
     AuthChangePasswordSchema,
-    AuthTokenRefreshSchema, AuthTokenRefreshResponseSchema
+    AuthTokenRefreshSchema, AuthTokenRefreshResponseSchema,
+    OTPSchema, OTPCheckSchema
 )
-from services.auth import AuthService
+from services.auth import AuthService, OTPService
 from services.users import UserService
 from services.base_service import BaseService
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,9 +39,6 @@ router = APIRouter(
 @router.post("/register", response_model=AuthProfileSchema)
 async def register(auth_data: AuthRegisterSchema,
                    request: Request):
-    """
-    Регистрация нового пользователя.
-    """
     db = request.state.db
     user_repo = UserRepository(db)
     user_service = UserService(user_repo)
@@ -45,12 +50,68 @@ async def register(auth_data: AuthRegisterSchema,
     return new_user
 
 
+@router.post("/otp")
+async def send_otp(request: Request, data: OTPSchema):
+    db = request.state.db
+    user_repo = UserRepository(db)
+    user = await user_repo.get_user_by_email(data.email)
+    code = await OTPService.generatore_code()
+    if not user and code:
+        message = f"""
+            <!DOCTYPE html>
+            <html>
+                <body>
+                    <p>It's your OTP code:</p>
+                    <h2 style="font-size: 24px; color: #333; font-weight: bold;">{code}</h2>
+                    <p>Copy and paste this code into the app.
+                    The code will expire in 5 minutes.</p>
+                </body>
+            </html>
+        """
+        send_message = await BaseService.send_message_to_email(
+            emails_to=[data.email], message=message
+        )
+        if send_message:
+            otp_data = {
+                'email': data.email,
+                'code': code
+            }
+            otp_repo = OTPRepository(db)
+            otp = await otp_repo.create_data(otp_data)
+            if otp:
+                return {
+                    'status': 'success',
+                    'message': f'OTP success send to email: {otp.email}'
+                }
+            raise HTTPException(status_code=500, detail="Create otp failed")
+        raise HTTPException(status_code=500, detail="Send message failed")
+    raise HTTPException(status_code=500, detail="Request failed")
+
+
+@router.post("/otp/check")
+async def checking_otp(request: Request, data: OTPCheckSchema):
+    db = request.state.db
+    otp_repo = OTPRepository(db)
+    user_repo = UserRepository(db)
+    otp = await otp_repo.get_otp_by_email_code(data.email, data.code)
+    if otp:
+        otp_id = otp.id
+        otp_email = otp.email
+        if (otp.created_at.date() == datetime.now().date() and
+            otp.created_at.hour == datetime.now().hour and
+            datetime.now().minute - otp.created_at.minute < 5):
+
+            new_user = await user_repo.create_data({'email': otp_email})
+            await otp_repo.delete_data(otp_id)
+            return new_user
+        await otp_repo.delete_data(otp_id)
+        raise HTTPException(status_code=500, detail="Ваш код просрочен получите новый код")
+    raise HTTPException(status_code=500, detail="Ваш почта или код не правильный")
+
+
 @router.post("/login", response_model=AuthLoginResponseSchema)
 async def login(auth_data: AuthLoginSchema,
                 request: Request):
-    """
-    Вход в систему пользователя.
-    """
     db = request.state.db
     user_repo = UserRepository(db)
     user = await user_repo.get_user_by_email_and_password(auth_data.email, auth_data.password)
@@ -76,9 +137,6 @@ async def login(auth_data: AuthLoginSchema,
 
 @router.post("/change-password")
 async def change_password(auth_data: AuthChangePasswordSchema, request: Request):
-    """
-    Изменения пароля пользователя
-    """
     user = request.state.user
     password_data = auth_data.dict()
     verify_password = UserService.verify_password(password_data['old_password'], user.password)
@@ -93,15 +151,12 @@ async def change_password(auth_data: AuthChangePasswordSchema, request: Request)
 
 @router.get("/me", response_model=AuthProfileSchema)
 async def profile(request: Request):
-    """
-    Профил
-    """
     user = request.state.user
     if not user:
         raise HTTPException(status_code=401, detail="User is not authanticate")
     data = {
         "id": user.id,
-        "image": f'{str(request.base_url).rstrip("/")}{user.image}' if user.image else 'No photo',
+        "image": f'{str(request.base_url).rstrip("/")}{user.image}' if user.image else 'none',
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
@@ -114,10 +169,6 @@ async def profile(request: Request):
 
 @router.patch("/me", response_model=AuthProfileSchema)
 async def profile_update(auth_data: AuthProfileUpdateSchema = Depends(), request: Request = None):
-    """
-    Обновления профиля
-    """
-    logger.info("Запустился API")
     try:
         db = request.state.db
         user = request.state.user
@@ -129,12 +180,13 @@ async def profile_update(auth_data: AuthProfileUpdateSchema = Depends(), request
 
         if auth_data.image:
             image_info = await BaseService.upload_image(auth_data.image, "avatars")
-            update_data["image"] = f'{image_info['image_path']}'
+            update_data["image"] = image_info['image_path']
             {str(request.base_url).rstrip("/")}
 
         user_repo = UserRepository(db)
-        profile_updated = await user_repo.update_user(user.id, update_data)
-        profile_updated.image = f'{str(request.base_url).rstrip("/")}{profile_updated.image}'
+        profile_updated = await user_repo.patch_user(user.id, update_data)
+        if profile_updated.image:
+            profile_updated.image = f'{str(request.base_url).rstrip("/")}{profile_updated.image}'
         return AuthProfileSchema.model_validate(profile_updated)
 
     except Exception as e:

@@ -1,4 +1,5 @@
 import datetime
+import random
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,3 +35,14 @@ class AuthService(BaseRepository):
                 user = await user_repo.get_data_by_id(user_id)
                 return user
         return None
+
+
+class OTPService:
+
+    @staticmethod
+    async def generatore_code() -> int:
+        code = random.randint(1000, 9999)
+        return code
+
+    def send_otp(self, email_to, code) -> bool:
+        return True

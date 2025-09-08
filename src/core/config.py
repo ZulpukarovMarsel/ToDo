@@ -2,6 +2,7 @@ from typing import List, ClassVar
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
+
 class Setting(BaseSettings):
     # Project data
     PROJECT_NAME: str = "FocusUp"
@@ -21,7 +22,8 @@ class Setting(BaseSettings):
     EMAIL_PORT: int
     EMAIL_USER: str
     EMAIL_PASSWORD: str
-    EMAIL_FROM: str
+    EMAIL_USE_TLS: bool
+    EMAIL_USE_SSL: bool
 
     # JWT
     JWT_SECRET_KEY: str
@@ -31,6 +33,10 @@ class Setting(BaseSettings):
 
     # CORS
     CORS_ORIGINS: List[str] = ["*"]
+
+    # Google pruf
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
 
     # Database url
     @property

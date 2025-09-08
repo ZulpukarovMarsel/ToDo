@@ -108,3 +108,15 @@ class AuthTokenRefreshResponseSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class OTPSchema(BaseModel):
+    email: EmailStr
+
+
+class OTPCheckSchema(BaseModel):
+    email: EmailStr
+    code: int
+
+    class Config:
+        from_attributes = True
