@@ -79,6 +79,22 @@ class AuthChangePasswordSchema(BaseModel):
         return self
 
 
+class AuthForgotPasswordSchema(BaseModel):
+    email: EmailStr
+
+    class Config:
+        from_attributes = True
+
+
+class AuthResetPasswordSchema(BaseModel):
+    email: EmailStr
+    code: int
+    new_password: str
+
+    class Config:
+        from_attributes = True
+
+
 class AuthTokenSchema(BaseModel):
     access_token: str
     token_type: str

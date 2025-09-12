@@ -1,7 +1,7 @@
 import logging
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.encoders import jsonable_encoder
 from jose import JWTError
@@ -16,7 +16,7 @@ from schemas.auth import (
     AuthLoginSchema, AuthLoginResponseSchema,
     AuthProfileSchema, AuthProfileUpdateSchema,
     AuthRegisterSchema,
-    AuthChangePasswordSchema,
+    AuthChangePasswordSchema, AuthForgotPasswordSchema, AuthResetPasswordSchema,
     AuthTokenRefreshSchema, AuthTokenRefreshResponseSchema,
     OTPSchema, OTPCheckSchema
 )
@@ -37,8 +37,7 @@ router = APIRouter(
 
 
 @router.post("/register", response_model=AuthProfileSchema)
-async def register(auth_data: AuthRegisterSchema,
-                   request: Request):
+async def register(request: Request, auth_data: AuthRegisterSchema):
     db = request.state.db
     user_repo = UserRepository(db)
     user_service = UserService(user_repo)
@@ -80,8 +79,8 @@ async def send_otp(request: Request, data: OTPSchema):
             otp = await otp_repo.create_data(otp_data)
             if otp:
                 return {
-                    'status': 'success',
-                    'message': f'OTP success send to email: {otp.email}'
+                    "status": "success",
+                    "message": f"OTP success send to email: {otp.email}"
                 }
             raise HTTPException(status_code=500, detail="Create otp failed")
         raise HTTPException(status_code=500, detail="Send message failed")
@@ -93,25 +92,35 @@ async def checking_otp(request: Request, data: OTPCheckSchema):
     db = request.state.db
     otp_repo = OTPRepository(db)
     user_repo = UserRepository(db)
-    otp = await otp_repo.get_otp_by_email_code(data.email, data.code)
-    if otp:
-        otp_id = otp.id
-        otp_email = otp.email
-        if (otp.created_at.date() == datetime.now().date() and
-            otp.created_at.hour == datetime.now().hour and
-            datetime.now().minute - otp.created_at.minute < 5):
 
-            new_user = await user_repo.create_data({'email': otp_email})
-            await otp_repo.delete_data(otp_id)
-            return new_user
-        await otp_repo.delete_data(otp_id)
-        raise HTTPException(status_code=500, detail="Ваш код просрочен получите новый код")
-    raise HTTPException(status_code=500, detail="Ваш почта или код не правильный")
+    otp = await otp_repo.get_otp_by_email_code(data.email, data.code)
+    if not otp:
+        raise HTTPException(status_code=400, detail="Ваш почта или код не правильный")
+
+    time_difference = datetime.now() - otp.created_at
+    if time_difference.total_seconds() > 300:
+        await otp_repo.delete_data(otp.id)
+        raise HTTPException(status_code=400, detail="Ваш код просрочен, получите новый код")
+
+    existing_user = await user_repo.get_user_by_email(data.email)
+    if existing_user:
+        await otp_repo.delete_data(otp.id)
+        raise HTTPException(status_code=409, detail="Пользователь с этим email уже существует")
+
+    try:
+        await otp_repo.delete_data(otp.id)
+        return {
+            "status": "success",
+            "message": "Email successfully verified"
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка при создании пользователя")
 
 
 @router.post("/login", response_model=AuthLoginResponseSchema)
-async def login(auth_data: AuthLoginSchema,
-                request: Request):
+async def login(request: Request, auth_data: AuthLoginSchema):
     db = request.state.db
     user_repo = UserRepository(db)
     user = await user_repo.get_user_by_email_and_password(auth_data.email, auth_data.password)
@@ -136,7 +145,7 @@ async def login(auth_data: AuthLoginSchema,
 
 
 @router.post("/change-password")
-async def change_password(auth_data: AuthChangePasswordSchema, request: Request):
+async def change_password(request: Request, auth_data: AuthChangePasswordSchema):
     user = request.state.user
     password_data = auth_data.dict()
     verify_password = UserService.verify_password(password_data['old_password'], user.password)
@@ -147,6 +156,78 @@ async def change_password(auth_data: AuthChangePasswordSchema, request: Request)
         await UserRepository(request.state.db).update_user(user_id=user.id, user_data=user_data)
         return JSONResponse(status_code=200, content={"message": "Пароль изменен успешно!"})
     raise HTTPException(status_code=400, detail="Старый пароль написан не правильно")
+
+
+@router.post("/forgot-password")
+async def forgot_password(request: Request, data: AuthForgotPasswordSchema):
+    db = request.state.db
+    user_repo = UserRepository(db)
+    user = await user_repo.get_user_by_email(data.email)
+    code = await OTPService.generatore_code()
+    if user and code:
+        message = f"""
+            <!DOCTYPE html>
+            <html>
+                <body>
+                    <p>It's your OTP  for set your password:</p>
+                    <h2 style="font-size: 24px; color: #333; font-weight: bold;">{code}</h2>
+                    <p>Copy and paste this code into the app.
+                    The code will expire in 5 minutes.</p>
+                </body>
+            </html>
+        """
+        send_message = await BaseService.send_message_to_email(
+            emails_to=[data.email], message=message
+        )
+        if send_message:
+            otp_data = {
+                'email': data.email,
+                'code': code
+            }
+            otp_repo = OTPRepository(db)
+            otp = await otp_repo.create_data(otp_data)
+            if otp:
+                return {
+                    "status": "success",
+                    "message": f"OTP success send to email: {otp.email}"
+                }
+            raise HTTPException(status_code=500, detail="Create otp failed")
+        raise HTTPException(status_code=500, detail="Send message failed")
+    raise HTTPException(status_code=500, detail="Request failed")
+
+
+@router.post('reset-password')
+async def reset_password(request: Request, data: AuthResetPasswordSchema):
+    db = request.state.db
+    user_repo = UserRepository(db)
+    user = user_repo.get_user_by_email(data.email)
+    otp_repo = OTPRepository(db)
+
+    otp = await otp_repo.get_otp_by_email_code(data.email, data.code)
+    if not otp:
+        raise HTTPException(status_code=400, detail="Ваш почта или код не правильный")
+
+    time_difference = datetime.now() - otp.created_at
+    if time_difference.total_seconds() > 300:
+        await otp_repo.delete_data(otp.id)
+        raise HTTPException(status_code=400, detail="Ваш код просрочен, получите новый код")
+
+    if not user:
+        await otp_repo.delete_data(otp.id)
+        raise HTTPException(status_code=400, detail="Not user is email")
+
+    try:
+        user_data = {'password': data.new_password}
+        await user_repo.patch_user(user.id, user_data)
+        await otp_repo.delete_data(otp.id)
+        return {
+            "status": "success",
+            "message": "Вы успешно обновили пароль"
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка при создании пользователя")
 
 
 @router.get("/me", response_model=AuthProfileSchema)
@@ -167,8 +248,24 @@ async def profile(request: Request):
     return JSONResponse(status_code=200, content=jsonable_encoder(data))
 
 
+@router.post("/logout")
+async def logout(request: Request, response: Response):
+    try:
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+
+        return JSONResponse(
+            status_code=200,
+            content={"message": "Вы успешно вышли из системы"}
+        )
+
+    except Exception as e:
+        logger.error(f"Logout error: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка при выходе из системы")
+
+
 @router.patch("/me", response_model=AuthProfileSchema)
-async def profile_update(auth_data: AuthProfileUpdateSchema = Depends(), request: Request = None):
+async def profile_update(request: Request, auth_data: AuthProfileUpdateSchema = Depends()):
     try:
         db = request.state.db
         user = request.state.user
@@ -194,18 +291,8 @@ async def profile_update(auth_data: AuthProfileUpdateSchema = Depends(), request
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/uploadfile")
-async def create_upload_file(file: UploadFile, request: Request):
-    file = await BaseService.upload_image(file, "avatar")
-    full_url = f'{str(request.base_url).rstrip("/")}{file['image_path']}'
-    return {"filename": full_url}
-
-
 @router.post("/token/refresh", response_model=AuthTokenRefreshResponseSchema)
-async def update_access_token(auth_data: AuthTokenRefreshSchema, request: Request):
-    """
-    Обновления access токена
-    """
+async def update_access_token(request: Request, auth_data: AuthTokenRefreshSchema):
     user = request.state.user
     auth_data = auth_data.dict()
     try:
