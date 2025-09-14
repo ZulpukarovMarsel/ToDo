@@ -1,5 +1,7 @@
 import datetime
 import random
+import urllib.parse
+
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +37,26 @@ class AuthService(BaseRepository):
                 user = await user_repo.get_data_by_id(user_id)
                 return user
         return None
+
+    @staticmethod
+    def generate_google_oauth_redirect_uri():
+        query_params = {
+            "client_id": settings.GOOGLE_CLIENT_ID,
+            "redirect_uri": "http://localhost:3000/auth/google",
+            "response_type": "code",
+            "scope": " ".join([
+                # "https://www.googleapis.com/o/oauth2/v2/auth",
+                # "https://www.googleapis.com/auth/calendar",
+                "openid",
+                "profile",
+                "email"
+            ]),
+            "access_type": "offline",
+        }
+
+        query_string = urllib.parse.urlencode(query_params, quote_via=urllib.parse.quote)
+        base_url = "https://accounts.google.com/o/oauth2/v2/auth"
+        return f"{base_url}?{query_string}"
 
 
 class OTPService:
