@@ -1,7 +1,8 @@
 import logging
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, Response
+from typing import Annotated
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, Response, Body
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.encoders import jsonable_encoder
 from jose import JWTError
@@ -196,11 +197,11 @@ async def forgot_password(request: Request, data: AuthForgotPasswordSchema):
     raise HTTPException(status_code=500, detail="Request failed")
 
 
-@router.post('reset-password')
+@router.post('/reset-password')
 async def reset_password(request: Request, data: AuthResetPasswordSchema):
     db = request.state.db
     user_repo = UserRepository(db)
-    user = user_repo.get_user_by_email(data.email)
+    user = await user_repo.get_user_by_email(data.email)
     otp_repo = OTPRepository(db)
 
     otp = await otp_repo.get_otp_by_email_code(data.email, data.code)
@@ -226,8 +227,8 @@ async def reset_password(request: Request, data: AuthResetPasswordSchema):
         }
 
     except Exception as e:
-        logger.error(f"Error creating user: {e}")
-        raise HTTPException(status_code=500, detail="Ошибка при создании пользователя")
+        logger.error(f"Error reset password: {e}")
+        raise HTTPException(status_code=500, detail="Ошибка обновления пользователя")
 
 
 @router.get("/me", response_model=AuthProfileSchema)
@@ -308,3 +309,31 @@ async def update_access_token(request: Request, auth_data: AuthTokenRefreshSchem
             return JSONResponse(status_code=200, content=jsonable_encoder(data))
     except JWTError as e:
         raise HTTPException(status_code=401, detail=e)
+
+
+@router.get("/google/url")
+def get_google_oauth_redirect_uri():
+    uri = AuthService.generate_google_oauth_redirect_uri()
+    return uri
+
+
+@router.post("/google/callback")
+async def hadle_code(
+    code: Annotated[str, Body(embed=True)],
+):
+    google_token_url = "https://oauth2.googleapis.com/token"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            url=google_token_url,
+            data={
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                "grant_type": "authorization_code",
+                "redirect_uri": "http://127.0.0.1:8000/",
+                "code": code
+            }
+        )
+        res = response.json()
+        print(f'{res=}')
+        return res
