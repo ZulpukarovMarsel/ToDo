@@ -9,6 +9,8 @@ from alembic import context
 from core.config import settings
 from models.base_models import BaseModel
 from models.users import User, Role
+from models.projects import Project
+from models.tasks import Task, Priority, TaskStatus
 
 config = context.config
 

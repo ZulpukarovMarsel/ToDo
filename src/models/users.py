@@ -1,19 +1,11 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Table, Column, ForeignKey
 from typing import List
 from slugify import slugify
 
 from schemas.users import UserSchema
 from schemas.roles import RoleSchema
 from .base_models import BaseModel
-
-
-association_table = Table(
-    "association_table",
-    BaseModel.metadata,
-    Column("roles_id", ForeignKey("roles.id")),
-    Column("users_id", ForeignKey("users.id")),
-)
+from .association_tables import association_table, project_participants
 
 
 class Role(BaseModel):
@@ -33,17 +25,28 @@ class Role(BaseModel):
 
 
 class User(BaseModel):
-    email: Mapped[str] = mapped_column(unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(unique=True, nullable=False, index=True)
     image: Mapped[str] = mapped_column(nullable=True, default='')
-    first_name: Mapped[str] = mapped_column(nullable=True, default='')
-    last_name: Mapped[str] = mapped_column(nullable=True, default='')
+    first_name: Mapped[str] = mapped_column(nullable=True, default='', index=True)
+    last_name: Mapped[str] = mapped_column(nullable=True, default='', index=True)
     password: Mapped[str] = mapped_column(nullable=True, default='')
     roles: Mapped[List["Role"]] = relationship(
         secondary=association_table, back_populates="users"
     )
-    # projects: relationship(
-    #     "Project", back_populates="owner"
-    # )
+    owned_projects: Mapped[List['Project']] = relationship(
+        "Project",
+        back_populates="owner",
+        foreign_keys="Project.owner_id"
+    )
+    participants_projects: Mapped[List['Project']] = relationship(
+        secondary=project_participants,
+        back_populates="participants"
+    )
+    performers: Mapped[List["Task"]] = relationship(
+        "Task",
+        back_populates="performer",
+        foreign_keys="Task.performer_id"
+    )
 
     def full_name(self) -> str:
         return f"{self.first_name} {self.last_name}"
