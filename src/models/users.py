@@ -2,7 +2,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List
 from slugify import slugify
 
-from schemas.users import UserSchema
+from schemas.users import UserResponseSchema
 from schemas.roles import RoleSchema
 from .base_models import BaseModel
 from .association_tables import association_table, project_participants
@@ -40,12 +40,24 @@ class User(BaseModel):
     )
     participants_projects: Mapped[List['Project']] = relationship(
         secondary=project_participants,
-        back_populates="participants"
+        back_populates="participating_users"
     )
-    performers: Mapped[List["Task"]] = relationship(
+    tasks: Mapped[List["Task"]] = relationship(
         "Task",
         back_populates="performer",
         foreign_keys="Task.performer_id"
+    )
+    project_invitations: Mapped[List["ProjectInvitation"]] = relationship(
+        "ProjectInvitation",
+        foreign_keys="ProjectInvitation.invited_id",
+        back_populates="invited",
+        cascade="all, delete-orphan"
+    )
+    sent_invitations: Mapped[List["ProjectInvitation"]] = relationship(
+        "ProjectInvitation",
+        foreign_keys="ProjectInvitation.inviter_id",
+        back_populates="inviter",
+        cascade="all, delete-orphan"
     )
 
     def full_name(self) -> str:
@@ -53,13 +65,3 @@ class User(BaseModel):
 
     def __repr__(self):
         return f"<User(id={self.id}, email={self.email})>"
-
-    def to_read_model(self) -> UserSchema:
-        return UserSchema(
-            id=self.id,
-            email=self.email,
-            first_name=self.first_name,
-            last_name=self.last_name,
-            password=self.password,
-            roles=[RoleSchema.model_validate(role) for role in self.roles]
-        )

@@ -1,6 +1,7 @@
-from typing import Optional, List
+from typing import Any, Optional, List
 from pydantic import BaseModel
 from pydantic.networks import EmailStr
+from fastapi import Request
 
 from .roles import RoleSchema
 
@@ -18,8 +19,12 @@ class UserAddSchema(UserLoginSchema):
     last_name: str
 
 
-class UserSchema(UserAddSchema):
+class UserResponseSchema(BaseModel):
     id: int
+    email: EmailStr
+    image: str = None
+    first_name: str
+    last_name: str
     roles: List[RoleSchema] = []
 
     class Config:

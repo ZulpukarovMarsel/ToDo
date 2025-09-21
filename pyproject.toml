@@ -7,8 +7,12 @@ requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.16.2",
     "asyncpg>=0.30.0",
+    "celery>=5.5.3",
     "fastapi>=0.115.13",
+    "fastapi-mail>=1.5.0",
+    "google-auth>=2.40.3",
     "greenlet>=3.2.3",
+    "httpx>=0.28.1",
     "passlib>=1.7.4",
     "psycopg2>=2.9.10",
     "pydantic-settings>=2.9.1",
@@ -16,6 +20,7 @@ dependencies = [
     "python-jose>=3.5.0",
     "python-multipart>=0.0.20",
     "python-slugify>=8.0.4",
+    "requests>=2.32.5",
     "sqlalchemy>=2.0.41",
     "uvicorn[standard]>=0.34.3",
 ]

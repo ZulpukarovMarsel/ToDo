@@ -10,12 +10,18 @@ class BaseRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_all(self):
-        result = await self.db.execute(select(self.model))
-        return result.scalars().all()
+    async def get_all(self, *options):
+        stmt = select(self.model)
+        if options:
+            stmt = stmt.options(*options)
+        result = await self.db.execute(stmt)
+        return result.unique().scalars().all()
 
-    async def get_data_by_id(self, id: int):
-        result = await self.db.execute(select(self.model).where(self.model.id == id))
+    async def get_data_by_id(self, id: int, *options):
+        stmt = select(self.model).where(self.model.id == id)
+        if options:
+            stmt = stmt.options(*options)
+        result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
 
     async def create_data(self, data: dict):
@@ -27,7 +33,7 @@ class BaseRepository:
             return data
         except Exception as e:
             await self.db.rollback()
-            return e
+            raise e
 
     async def update_data(self, data_id: int, data: dict):
         get_data = await self.get_data_by_id(data_id)

@@ -3,7 +3,7 @@ from sqlalchemy.orm import selectinload
 
 from repositories.users import UserRepository
 from services.users import UserService
-from schemas.users import UserAddSchema, UserSchema, UserPatchSchema
+from schemas.users import UserAddSchema, UserResponseSchema, UserPatchSchema
 
 router = APIRouter(
     prefix="/users",
@@ -13,7 +13,7 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=list[UserSchema])
+@router.get("/", response_model=list[UserResponseSchema])
 async def get_users(request: Request):
     db = request.state.db
     user_repo = UserRepository(db)
@@ -21,7 +21,7 @@ async def get_users(request: Request):
     return users
 
 
-@router.get("/{user_id}", response_model=UserSchema)
+@router.get("/{user_id}", response_model=UserResponseSchema)
 async def get_user_by_id(user_id: int,
                          request: Request):
     db = request.state.db
@@ -32,7 +32,7 @@ async def get_user_by_id(user_id: int,
     return user
 
 
-@router.post("/", response_model=UserSchema)
+@router.post("/", response_model=UserResponseSchema)
 async def create_user(user: UserAddSchema,
                       request: Request):
     db = request.state.db
@@ -46,7 +46,7 @@ async def create_user(user: UserAddSchema,
     return new_user
 
 
-@router.patch("/{user_id}", response_model=UserSchema)
+@router.patch("/{user_id}", response_model=UserResponseSchema)
 async def update_user(user_id: int, user: UserPatchSchema,
                       request: Request):
     db = request.state.db
@@ -58,7 +58,7 @@ async def update_user(user_id: int, user: UserPatchSchema,
     return updated_user
 
 
-@router.delete("/{user_id}", response_model=UserSchema)
+@router.delete("/{user_id}", response_model=UserResponseSchema)
 async def delete_user(user_id: int,
                       request: Request):
     db = request.state.db

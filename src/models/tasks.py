@@ -65,7 +65,7 @@ class Task(BaseModel):
     )
     performer: Mapped["User"] = relationship(
         "User",
-        back_populates="performers"
+        back_populates="tasks"
     )
     status: Mapped["TaskStatus"] = relationship(
         "TaskStatus",

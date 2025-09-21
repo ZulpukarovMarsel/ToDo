@@ -1,4 +1,4 @@
-from typing import Iterable, List, Any
+from typing import List, Any
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError
@@ -7,18 +7,10 @@ from pydantic.networks import EmailStr
 from models.users import User, Role
 from services.users import UserService
 from .base_repository import BaseRepository
-from .roles import RolesRepository
 
 
 class UserRepository(BaseRepository):
     model = User
-
-    async def get_all(self, *options):
-        stmt = select(self.model).options(selectinload(User.roles))
-        if options:
-            stmt = stmt.options(*options)
-        result = await self.db.execute(stmt)
-        return result.unique().scalars().all()
 
     async def get_data_by_id(self, id: int, *options):
         stmt = (
@@ -30,6 +22,16 @@ class UserRepository(BaseRepository):
             stmt = stmt.options(*options)
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_users_by_ids(self, user_ids: list[int]):
+        if not user_ids:
+            return []
+        result = await self.db.execute(
+            select(self.model)
+            .where(self.model.id.in_(user_ids))
+            .options(selectinload(User.roles))
+        )
+        return list(result.unique().scalars().all())
 
     async def get_user_by_email_and_password(self, email: str, password: str):
         result = await self.db.execute(

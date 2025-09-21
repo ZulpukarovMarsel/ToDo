@@ -55,3 +55,6 @@ uv.lock
 # Misc
 *.tar.gz
 *.zip
+
+# Media
+media
