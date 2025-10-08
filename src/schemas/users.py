@@ -1,7 +1,6 @@
-from typing import Any, Optional, List
+from typing import Optional, List
 from pydantic import BaseModel
 from pydantic.networks import EmailStr
-from fastapi import Request
 
 from .roles import RoleSchema
 

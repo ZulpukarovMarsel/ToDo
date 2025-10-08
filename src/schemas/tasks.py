@@ -1,4 +1,4 @@
-from typing import Optional, List, TYPE_CHECKING
+from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
 from .users import UserResponseSchema
